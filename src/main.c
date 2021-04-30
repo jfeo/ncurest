@@ -27,7 +27,10 @@ typedef struct {
   int height;
   int width;
   int anchor;
-  WINDOW *win;
+  WINDOW *container;
+  WINDOW *content;
+  int content_scroll_y;
+  int content_scroll_x;
 } RESIZE_WINDOW;
 
 typedef struct {
@@ -53,6 +56,14 @@ POINT rswin_origin(RESIZE_WINDOW *rswin) {
   return pt;
 }
 
+void rswin_refresh(RESIZE_WINDOW *rswin, POINT origin) {
+  wnoutrefresh(rswin->container);
+  pnoutrefresh(rswin->content, rswin->content_scroll_y, rswin->content_scroll_x,
+               origin.y + 1, origin.x + 1, origin.y + rswin->height - 1,
+               origin.x + rswin->width - 1);
+  doupdate();
+}
+
 RESIZE_WINDOW *rswin_new(int height, int width, int starty, int startx,
                          int anchor) {
   POINT origin;
@@ -63,13 +74,16 @@ RESIZE_WINDOW *rswin_new(int height, int width, int starty, int startx,
   rswin->y = starty;
   rswin->x = startx;
   rswin->anchor = anchor;
+  rswin->content_scroll_y = 0;
+  rswin->content_scroll_x = 0;
 
   origin = rswin_origin(rswin);
 
-  rswin->win = newwin(height, width, origin.y, origin.x);
+  rswin->container = newwin(height, width, origin.y, origin.x);
+  rswin->content = newpad(height - 2, width - 2);
 
-  box(rswin->win, 0, 0);
-  wrefresh(rswin->win);
+  box(rswin->container, 0, 0);
+  rswin_refresh(rswin, origin);
 
   return rswin;
 }
@@ -78,8 +92,8 @@ void rswin_move(RESIZE_WINDOW *rswin, int y, int x) {
   POINT origin;
 
   // clear to prevent artifacts
-  wclear(rswin->win);
-  wrefresh(rswin->win);
+  wclear(rswin->container);
+  wrefresh(rswin->container);
 
   // set new coordinate and compute origin
   rswin->x = x;
@@ -87,75 +101,104 @@ void rswin_move(RESIZE_WINDOW *rswin, int y, int x) {
   origin = rswin_origin(rswin);
 
   // move
-  mvwin(rswin->win, origin.y, origin.x);
+  mvwin(rswin->container, origin.y, origin.x);
 
   // redraw
-  box(rswin->win, 0, 0);
-  wrefresh(rswin->win);
+  box(rswin->container, 0, 0);
+  rswin_refresh(rswin, origin);
 }
 
 void rswin_resize(RESIZE_WINDOW *rswin, int height, int width) {
   POINT origin;
 
   // clear to prevent artifacts
-  wclear(rswin->win);
-  wrefresh(rswin->win);
+  wclear(rswin->container);
+  wrefresh(rswin->container);
 
   rswin->height = height;
   rswin->width = width;
   origin = rswin_origin(rswin);
 
   // resize the window
-  wresize(rswin->win, height, width);
-  mvwin(rswin->win, origin.y, origin.x);
+  wresize(rswin->container, height, width);
+  wresize(rswin->content, height - 2, width - 2);
+  mvwin(rswin->container, origin.y, origin.x);
 
   // redraw
-  box(rswin->win, 0, 0);
-  wrefresh(rswin->win);
+  box(rswin->container, 0, 0);
+  rswin_refresh(rswin, origin);
 }
 
 void rswin_del(RESIZE_WINDOW *rswin) {
-  delwin(rswin->win);
+  delwin(rswin->container);
   free(rswin);
 }
 
-void rswin_set_text(RESIZE_WINDOW *rswin, char *text) {
-  wclear(rswin->win);
-  mvwprintw(rswin->win, 1, 1, "%s", text);
-  box(rswin->win, 0, 0);
-  wrefresh(rswin->win);
+void rswin_set_text(RESIZE_WINDOW *rswin, const char *fmt, ...) {
+  va_list ap;
+  va_start(ap, fmt);
+
+  touchwin(rswin->container);
+  wclear(rswin->content);
+  wmove(rswin->content, 0, 0);
+  vw_printw(rswin->content, fmt, ap);
+
+  va_end(ap);
+
+  POINT origin = rswin_origin(rswin);
+  rswin_refresh(rswin, origin);
 }
 
 size_t write_data(void *buffer, size_t size, size_t nmemb, void *userp) {
   RESIZE_WINDOW *rswin = (RESIZE_WINDOW *)userp;
 
-  char* buf = calloc(nmemb, size);
-  snprintf(buf, nmemb * size, "%s", (char*)buffer);
-  for (size_t i = 0; i < nmemb; i++) {
-      if (buf[i] == '\n' || buf[i] == '\r') buf[i] = ' ';
-  }
+  char *buf = calloc(nmemb, size);
+  snprintf(buf, nmemb * size, "%s", (char *)buffer);
+  for (size_t i = 0; i < nmemb; i++)
+    if (buf[i] == '\r')
+      buf[i] = ' ';
   rswin_set_text(rswin, buf);
   free(buf);
 
   return size * nmemb;
 }
 
-void send_request(CURL *curl, const char *url, RESIZE_WINDOW *rswin) {
-  rswin_set_text(rswin, "Sending request... ");
+void send_request(CURL *curl, const char *url, RESIZE_WINDOW *content,
+                  RESIZE_WINDOW *status) {
   CURLcode code;
+
+  rswin_set_text(status, "GET %s", url);
+
   curl = curl_easy_init();
-  curl_easy_setopt(curl, CURLOPT_URL, "http://emissary.live/");
+  curl_easy_setopt(curl, CURLOPT_URL, url);
   curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_data);
-  curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)rswin);
+  curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)content);
   code = curl_easy_perform(curl);
+
+  long http_code;
+  curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+
+  rswin_set_text(status, "Status %lu", http_code);
 }
+
+void rswin_scroll(RESIZE_WINDOW *rswin, int delta_y, int delta_x) {
+  POINT origin = rswin_origin(rswin);
+
+  rswin->content_scroll_y += delta_y;
+  rswin->content_scroll_x += delta_x;
+
+  rswin_refresh(rswin, origin);
+}
+
+#define MODE_WINDOW 0
+#define MODE_WRITE_URL 1
 
 /**
  * The entrypoint
  **/
 int main(int argc, char **argv) {
   int ch;
-  RESIZE_WINDOW *rswin_left, *rswin_right;
+  RESIZE_WINDOW *rswin_url, *rswin_status, *rswin_body;
   CURL *curl;
 
   signal(SIGINT, sigint_handler);
@@ -165,64 +208,78 @@ int main(int argc, char **argv) {
 
   /* Initialize curses */
   initscr();
-  cbreak();
+  raw();
   noecho();
   keypad(stdscr, TRUE);
   refresh();
 
   /* Create a window */
-  rswin_right = rswin_new(5, 5, 10, 15, rswin_ANCHOR_TOP | rswin_ANCHOR_RIGHT);
+  rswin_url = rswin_new(3, 42, 0, 0, rswin_ANCHOR_TOP | rswin_ANCHOR_LEFT);
+  rswin_status = rswin_new(3, 42, 3, 0, rswin_ANCHOR_TOP | rswin_ANCHOR_LEFT);
+  rswin_body =
+      rswin_new(40, 100 + 2, 6, 0, rswin_ANCHOR_TOP | rswin_ANCHOR_LEFT);
+
+  char url[43] = "http://example.com";
+  size_t url_index = sizeof("http://example.com") - 1;
+  rswin_set_text(rswin_url, url);
 
   int run = 1;
-  int mode_move = 0;
+  int mode = 0;
   while (run == 1) {
     ch = getch();
+
+    if (mode == MODE_WRITE_URL) {
+      switch (ch) {
+      case 0x0A:
+        send_request(curl, url, rswin_body, rswin_status);
+      case 0x09:
+        mode = MODE_WINDOW;
+        break;
+      case 127:
+        if (url_index > 0) {
+          url_index--;
+          url[url_index] = 0;
+        }
+        break;
+      default:
+        if (url_index < 42) {
+          url[url_index] = ch;
+          url_index++;
+        }
+        break;
+      }
+      rswin_set_text(rswin_url, url);
+      continue;
+    }
 
     switch (ch) {
     case 'q':
       run = 0;
       break;
-    case 's':
-      send_request(curl, "http://emissary.live", rswin_right);
-      break;
-    case 'g':
-      mvprintw(0, 0, "Testing printing");
-      rswin_set_text(rswin_right, "Testing...");
-      wrefresh(rswin_right->win);
-      break;
-    case KEY_LEFT:
-      if (mode_move) {
-        rswin_move(rswin_right, rswin_right->y, rswin_right->x - 1);
-      } else {
-        rswin_resize(rswin_right, rswin_right->height, rswin_right->width + 1);
+    case 0x0A:
+      if (mode == MODE_WINDOW) {
+        send_request(curl, url, rswin_body, rswin_status);
       }
       break;
-    case KEY_RIGHT:
-      if (mode_move) {
-        rswin_move(rswin_right, rswin_right->y, rswin_right->x + 1);
-      } else {
-        rswin_resize(rswin_right, rswin_right->height, rswin_right->width - 1);
-      }
+    case 0x09:
+      mode = MODE_WRITE_URL;
       break;
-    case KEY_DOWN:
-      if (mode_move) {
-        rswin_move(rswin_right, rswin_right->y + 1, rswin_right->x);
-      } else {
-        rswin_resize(rswin_right, rswin_right->height + 1, rswin_right->width);
-      }
+    case 258:
+      rswin_scroll(rswin_body, 1, 0);
+      rswin_set_text(rswin_status, "scroll (%d, %d)",
+                     rswin_body->content_scroll_y,
+                     rswin_body->content_scroll_x);
       break;
-    case KEY_UP:
-      if (mode_move) {
-        rswin_move(rswin_right, rswin_right->y - 1, rswin_right->x);
-      } else {
-        rswin_resize(rswin_right, rswin_right->height - 1, rswin_right->width);
-      }
+    case 259:
+      rswin_scroll(rswin_body, -1, 0);
+      rswin_set_text(rswin_status, "scroll (%d, %d)",
+                     rswin_body->content_scroll_y,
+                     rswin_body->content_scroll_x);
+      break;
     case KEY_RESIZE:
       break;
-    case 'm':
-      mode_move = mode_move == 0 ? 1 : 0;
-      break;
     default:
+      rswin_set_text(rswin_status, "Unknown Key Code = %d", ch);
       break;
     }
   }
