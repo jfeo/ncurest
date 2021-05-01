@@ -59,8 +59,8 @@ POINT rswin_origin(RESIZE_WINDOW *rswin) {
 void rswin_refresh(RESIZE_WINDOW *rswin, POINT origin) {
   wnoutrefresh(rswin->container);
   pnoutrefresh(rswin->content, rswin->content_scroll_y, rswin->content_scroll_x,
-               origin.y + 1, origin.x + 1, origin.y + rswin->height - 1,
-               origin.x + rswin->width - 1);
+               origin.y + 1, origin.x + 1, origin.y + rswin->height - 2,
+               origin.x + rswin->width - 2);
   doupdate();
 }
 
@@ -80,7 +80,7 @@ RESIZE_WINDOW *rswin_new(int height, int width, int starty, int startx,
   origin = rswin_origin(rswin);
 
   rswin->container = newwin(height, width, origin.y, origin.x);
-  rswin->content = newpad(height - 2, width - 2);
+  rswin->content = newpad(height * 2, width * 2);
 
   box(rswin->container, 0, 0);
   rswin_refresh(rswin, origin);
@@ -175,17 +175,28 @@ void send_request(CURL *curl, const char *url, RESIZE_WINDOW *content,
   curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)content);
   code = curl_easy_perform(curl);
 
-  long http_code;
-  curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+  if (code == CURLE_OK) {
+    long http_code;
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
 
-  rswin_set_text(status, "Status %lu", http_code);
+    rswin_set_text(status, "HTTP Status %lu", http_code);
+  } else {
+    rswin_set_text(status, "CURL error %lu", code);
+  }
 }
 
 void rswin_scroll(RESIZE_WINDOW *rswin, int delta_y, int delta_x) {
   POINT origin = rswin_origin(rswin);
 
   rswin->content_scroll_y += delta_y;
+  if (rswin->content_scroll_y < 0) {
+    rswin->content_scroll_y = 0;
+  }
+
   rswin->content_scroll_x += delta_x;
+  if (rswin->content_scroll_x < 0) {
+    rswin->content_scroll_x = 0;
+  }
 
   rswin_refresh(rswin, origin);
 }
@@ -231,6 +242,8 @@ int main(int argc, char **argv) {
     if (mode == MODE_WRITE_URL) {
       switch (ch) {
       case 0x0A:
+        rswin_scroll(rswin_body, -rswin_body->content_scroll_y,
+                     -rswin_body->content_scroll_x);
         send_request(curl, url, rswin_body, rswin_status);
       case 0x09:
         mode = MODE_WINDOW;
@@ -258,6 +271,8 @@ int main(int argc, char **argv) {
       break;
     case 0x0A:
       if (mode == MODE_WINDOW) {
+        rswin_scroll(rswin_body, -rswin_body->content_scroll_y,
+                     -rswin_body->content_scroll_x);
         send_request(curl, url, rswin_body, rswin_status);
       }
       break;
@@ -266,15 +281,15 @@ int main(int argc, char **argv) {
       break;
     case 258:
       rswin_scroll(rswin_body, 1, 0);
-      rswin_set_text(rswin_status, "scroll (%d, %d)",
-                     rswin_body->content_scroll_y,
-                     rswin_body->content_scroll_x);
       break;
     case 259:
       rswin_scroll(rswin_body, -1, 0);
-      rswin_set_text(rswin_status, "scroll (%d, %d)",
-                     rswin_body->content_scroll_y,
-                     rswin_body->content_scroll_x);
+      break;
+    case 260:
+      rswin_scroll(rswin_body, 0, -1);
+      break;
+    case 261:
+      rswin_scroll(rswin_body, 0, 1);
       break;
     case KEY_RESIZE:
       break;
