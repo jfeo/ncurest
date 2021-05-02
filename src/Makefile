@@ -1,7 +1,7 @@
 CC=gcc
-CFLAGS=-std=c11 -pedantic
+CFLAGS=-std=gnu11 -pedantic
 LDLIBS=-lncurses -lform -lpanel -lcurl
-SRCS=main.c
+SRCS=http.c rswin.c main.c
 OBJS=$(addprefix $(OBJDIR)/,$(SRCS:.c=.o))
 DEPS=
 BINDIR?=bin
