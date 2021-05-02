@@ -56,7 +56,7 @@ void send_request(CURL *curl, const char *url, RESIZE_WINDOW *content,
   }
 }
 
-void http_send(const char *url, RESIZE_WINDOW *status, RESIZE_WINDOW *body) {
+void http_send(char *url, RESIZE_WINDOW *status, RESIZE_WINDOW *body) {
   http_request req;
   req.method = "GET";
   req.uri = "index.html";
