@@ -6,11 +6,11 @@ OBJS=$(addprefix $(OBJDIR)/,$(SRCS:.c=.o))
 DEPS=
 BINDIR?=bin
 
-all: $(BINDIR)/ncurlses
+all: $(BINDIR)/ncurest
 
-$(BINDIR)/ncurlses: $(OBJS)
+$(BINDIR)/ncurest: $(OBJS)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) $(LDLIBS) -o $(BINDIR)/ncurlses $(OBJS) 
+	$(CC) $(CFLAGS) $(LDLIBS) -o $(BINDIR)/ncurest $(OBJS) 
 
 $(OBJDIR)/%.o: %.c
 	@mkdir -p $(@D)

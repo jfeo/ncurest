@@ -16,7 +16,7 @@ test: build
 
 .PHONY: run
 run: build
-	$(BINDIR)/ncurlses
+	$(BINDIR)/ncurest
 
 .PHONY: clean
 clean:
