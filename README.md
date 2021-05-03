@@ -4,6 +4,8 @@ ncurest - an ncurses HTTP and REST client
 The goal is to create a simple interactive client program, that can be used to
 test HTTP and in particular REST APIs.
 
+![](ncurest-teaser.gif)
+
 Dependencies
 ------------
 
