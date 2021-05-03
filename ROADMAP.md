@@ -12,7 +12,7 @@ Version 0.1 - The basics
  - [x] Input user-defined tcp domain
  - [ ] Display request response headers
  - [x] Display plaintext response body
- - [ ] Input user-defined HTTP method and request-uri
+ - [x] Input user-defined HTTP method and request-uri
 
 Version 0.2 - Send data
 -----------------------

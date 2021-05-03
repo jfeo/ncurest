@@ -1,13 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <arpa/inet.h>
-#include <netdb.h>
 #include <sys/socket.h>
-#include <sys/types.h>
-#include <unistd.h>
-#include <string.h>
 
 #include "http.h"
+#include "net.h"
+
+#include <ncurses.h>
 
 size_t http_dump_request(http_request req, char **dump) {
   char *allocated;
@@ -206,75 +204,42 @@ http_response *http_parse_response(void *buffer, size_t size) {
   return resp;
 }
 
-http_response *http_send_request(const char *host, const char *port,
-                                 http_request req) {
-  int socket_fd;
-  char *send_buf, *recv_buf, *recv_tmp;
-  size_t send_len, recv_len, recv_res;
+int http_send(int socket_fd, http_request req) {
+  char *buf;
+  size_t len;
+
+  len = http_dump_request(req, &buf);
+  if (buf == NULL) {
+    return -1;
+  }
+
+  return send(socket_fd, buf, len, 0);
+}
+
+http_response *http_recv(int socket_fd) {
+  char *buf, *tmp;
+  size_t len, res;
   http_response *resp;
-  struct addrinfo hints, *results, *res;
 
-  memset(&hints, 0, sizeof hints);
-  hints.ai_family = AF_INET;
-  hints.ai_socktype = SOCK_STREAM;
-  hints.ai_protocol = 0;
-  hints.ai_flags = AI_V4MAPPED;
+  buf = malloc(HTTP_RECV_BUFSIZE * sizeof *buf);
+  len = 0;
+  while ((res = recv(socket_fd, &buf[len], HTTP_RECV_BUFSIZE, 0)) > 0) {
+    len += res;
+    tmp = realloc(buf, (len + HTTP_RECV_BUFSIZE) * sizeof *buf);
 
-  if (getaddrinfo(host, port, &hints, &results) != 0) {
-    return (http_response *)NULL;
-  }
-
-  for (res = results; res != NULL; res = res->ai_next) {
-    socket_fd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
-
-    if (socket_fd == -1) {
-      continue;
+    if (tmp == NULL) {
+      return NULL;
     }
 
-    if (connect(socket_fd, res->ai_addr, res->ai_addrlen) != -1) {
-      break;
+    buf = tmp;
+
+    resp = http_parse_response(buf, len);
+    if (resp != NULL) {
+      return resp;
     }
-
-    close(socket_fd);
   }
 
-  freeaddrinfo(results);
-
-  if (res == NULL) {
-    return (http_response *)NULL;
-  }
-
-  send_len = http_dump_request(req, &send_buf);
-  if (send_buf == NULL) {
-    return (http_response *)NULL;
-  }
-
-  // by this point we have opened a tcp connection
-  if (send(socket_fd, send_buf, send_len, 0) == -1) {
+  if (res == -1) {
     return NULL;
   }
-
-  recv_buf = malloc(HTTP_RECV_BUFSIZE * sizeof *recv_buf);
-  recv_len = 0;
-  while ((recv_res =
-              recv(socket_fd, &recv_buf[recv_len], HTTP_RECV_BUFSIZE, 0)) > 0) {
-    recv_len += recv_res;
-    recv_tmp =
-        realloc(recv_buf, (recv_len + HTTP_RECV_BUFSIZE) * sizeof *recv_buf);
-
-    if (recv_tmp == NULL) {
-      // handle error
-    }
-
-    recv_buf = recv_tmp;
-  }
-
-  if (recv_res == -1) {
-    // error
-    return NULL;
-  }
-
-  resp = http_parse_response(recv_buf, recv_len);
-
-  return resp;
 }

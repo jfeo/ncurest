@@ -3,7 +3,7 @@
 
 #include <stdlib.h>
 
-#define HTTP_RECV_BUFSIZE 512
+#define HTTP_RECV_BUFSIZE 512 * 8
 
 typedef struct {
   char *header;
@@ -27,7 +27,11 @@ typedef struct {
 } http_response;
 
 size_t http_dump_request(http_request req, char **buf);
+
 http_response *http_parse_response(void *buffer, size_t size);
-http_response *http_send_request(const char *host, const char *port, http_request req); 
+
+int http_send(int socket_fd, http_request req);
+
+http_response *http_recv(int socket_fd);
 
 #endif

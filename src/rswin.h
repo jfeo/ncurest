@@ -18,6 +18,7 @@ typedef struct {
   WINDOW *content;
   int content_scroll_y;
   int content_scroll_x;
+  int focus;
 } RESIZE_WINDOW;
 
 typedef struct {
@@ -35,5 +36,6 @@ void rswin_resize(RESIZE_WINDOW *rswin, int height, int width);
 void rswin_del(RESIZE_WINDOW *rswin);
 void rswin_set_text(RESIZE_WINDOW *rswin, const char *fmt, ...);
 void rswin_scroll(RESIZE_WINDOW *rswin, int delta_y, int delta_x);
+void rswin_set_focus(RESIZE_WINDOW *rswin, int focus);
 
 #endif // __NCURLSES_HTTP_H__

@@ -1,10 +1,11 @@
-#include <curl/curl.h>
+#include <ctype.h>
 #include <ncurses.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 #include "http.h"
+#include "net.h"
 #include "rswin.h"
 
 WINDOW *win;
@@ -20,169 +21,244 @@ void sigint_handler(int param) {
   exit(1);
 }
 
-size_t write_data(void *buffer, size_t size, size_t nmemb, void *userp) {
-  RESIZE_WINDOW *rswin = (RESIZE_WINDOW *)userp;
+typedef struct {
+  RESIZE_WINDOW *rswin;
+  char *buf;
+  size_t max_length;
+  size_t cursor;
+} TEXT_INPUT;
 
-  char *buf = calloc(nmemb, size);
-  snprintf(buf, nmemb * size, "%s", (char *)buffer);
-  for (size_t i = 0; i < nmemb; i++)
-    if (buf[i] == '\r')
-      buf[i] = ' ';
-  rswin_set_text(rswin, buf);
-  free(buf);
+typedef struct {
+  RESIZE_WINDOW *rswin;
+  void (*action)(void **);
+} BUTTON;
 
-  return size * nmemb;
-}
+#define FOCUS_SCROLLER 1
+#define FOCUS_INPUT 2
+#define FOCUS_BUTTON 3
+typedef struct focus {
+  int type;
+  union {
+    RESIZE_WINDOW *scroller;
+    TEXT_INPUT *input;
+    BUTTON *button;
+  };
+} FOCUS;
 
-void send_request(CURL *curl, const char *url, RESIZE_WINDOW *content,
-                  RESIZE_WINDOW *status) {
-  CURLcode code;
+void btn_send_action(void **arg) {
+  RESIZE_WINDOW *rswin_body, *rswin_status;
+  http_request *req;
+  int socket_fd;
+  char *domain;
 
-  rswin_set_text(status, "GET %s", url);
+  endwin();
 
-  curl = curl_easy_init();
-  curl_easy_setopt(curl, CURLOPT_URL, url);
-  curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_data);
-  curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)content);
-  code = curl_easy_perform(curl);
+  rswin_body = (RESIZE_WINDOW *)arg[0];
+  rswin_status = (RESIZE_WINDOW *)arg[1];
+  req = (http_request *)arg[2];
+  domain = (char *)arg[3];
 
-  if (code == CURLE_OK) {
-    long http_code;
-    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+  rswin_scroll(rswin_body, -rswin_body->content_scroll_y,
+               -rswin_body->content_scroll_x);
 
-    rswin_set_text(status, "HTTP Status %lu", http_code);
-  } else {
-    rswin_set_text(status, "CURL error %lu", code);
-  }
-}
+  rswin_set_text(rswin_status, "Establishing connection...");
 
-void http_send(char *url, RESIZE_WINDOW *status, RESIZE_WINDOW *body) {
-  http_request req;
-  req.method = "GET";
-  req.uri = "index.html";
-  req.header_count = 1;
-  req.headers = calloc(1, sizeof *req.headers);
-  if (req.headers == NULL) {
-    rswin_set_text(status, "Error! Could not generate request.");
-  } else {
-    rswin_set_text(status, "GET index.html at %s", url);
-  }
-  req.headers[0].header = "Host";
-  req.headers[0].value = url;
+  socket_fd = net_tcp_connect(domain, "80");
 
-  http_response *resp = http_send_request(url, "80", req);
-  if (resp == NULL) {
-    rswin_set_text(status, "Error occured!");
+  rswin_set_text(rswin_status, "Sending request...");
+
+  if (http_send(socket_fd, *req) == -1) {
+    // error
+    rswin_set_text(rswin_status, "Error occured during sending.");
     return;
   }
 
-  rswin_set_text(status, "%d %s", resp->status_code, resp->reason_phrase);
+  rswin_set_text(rswin_status, "Receiving response...");
+
+  http_response *resp = http_recv(socket_fd);
+  if (resp == NULL) {
+    rswin_set_text(rswin_status, "Error occured during receiving.");
+    return;
+  }
+
+  rswin_set_text(rswin_status, "%d %s", resp->status_code, resp->reason_phrase);
 
   if (resp->body != NULL) {
-    rswin_set_text(body, (char *)resp->body); 
+    rswin_set_text(rswin_body, (char *)resp->body);
+  } else {
+    rswin_set_text(rswin_body, "");
   }
 }
-
-#define MODE_WINDOW 0
-#define MODE_WRITE_URL 1
 
 /**
  * The entrypoint
  **/
 int main(int argc, char **argv) {
   int ch;
-  RESIZE_WINDOW *rswin_url, *rswin_status, *rswin_body;
-  CURL *curl;
+  char buf_method[6], buf_domain[22], buf_uri[49];
+  BUTTON btn_send;
+  TEXT_INPUT inp_domain, inp_method, inp_uri;
+  RESIZE_WINDOW *rswin_domain, *rswin_method, *rswin_uri, *rswin_status,
+      *rswin_body, *rswin_send;
 
   signal(SIGINT, sigint_handler);
 
-  /* init curl */
-  curl_global_init(CURL_GLOBAL_ALL);
-
   /* Initialize curses */
   initscr();
+  start_color();
   raw();
   noecho();
   keypad(stdscr, TRUE);
   refresh();
+  curs_set(0);
 
-  /* Create a window */
-  rswin_url = rswin_new(3, 42, 0, 0, rswin_ANCHOR_TOP | rswin_ANCHOR_LEFT);
-  rswin_status = rswin_new(3, 42, 3, 0, rswin_ANCHOR_TOP | rswin_ANCHOR_LEFT);
-  rswin_body =
-      rswin_new(40, 100 + 2, 6, 0, rswin_ANCHOR_TOP | rswin_ANCHOR_LEFT);
+  // initialize color
+  init_pair(1, COLOR_BLUE, COLOR_BLACK);
 
-  char url[43] = "example.com";
-  size_t url_index = sizeof("example.com") - 1;
-  rswin_set_text(rswin_url, url);
+  /* Define the user interface layout */
+  rswin_method = rswin_new(3, 7, 0, 0, rswin_ANCHOR_TOP | rswin_ANCHOR_LEFT);
+  rswin_domain = rswin_new(3, 23, 0, 7, rswin_ANCHOR_TOP | rswin_ANCHOR_LEFT);
+  rswin_uri = rswin_new(3, 50, 0, 30, rswin_ANCHOR_TOP | rswin_ANCHOR_LEFT);
+  rswin_body = rswin_new(30, 80, 3, 0, rswin_ANCHOR_TOP | rswin_ANCHOR_LEFT);
+  rswin_send = rswin_new(3, 10, 33, 0, rswin_ANCHOR_TOP | rswin_ANCHOR_LEFT);
+  rswin_status = rswin_new(3, 70, 33, 10, rswin_ANCHOR_TOP | rswin_ANCHOR_LEFT);
 
-  int run = 1;
-  int mode = 0;
-  while (run == 1) {
+  /* Create the text inputs*/
+  inp_domain.buf = buf_domain;
+  snprintf(buf_domain, 22, "example.com");
+  rswin_set_text(rswin_domain, buf_domain);
+  inp_domain.max_length = 21;
+  inp_domain.cursor = sizeof "example.com" - 1;
+  inp_domain.rswin = rswin_domain;
+
+  inp_method.buf = buf_method;
+  snprintf(buf_method, 6, "GET");
+  rswin_set_text(rswin_method, buf_method);
+  inp_method.max_length = 5;
+  inp_method.cursor = sizeof "GET" - 1;
+  inp_method.rswin = rswin_method;
+
+  inp_uri.buf = buf_uri;
+  snprintf(buf_uri, 49, "/index.html");
+  rswin_set_text(rswin_uri, buf_uri);
+  inp_uri.max_length = 48;
+  inp_uri.cursor = sizeof "/index.html" - 1;
+  inp_uri.rswin = rswin_uri;
+
+  // Create the send button
+  rswin_set_text(rswin_send, "Send");
+  btn_send.action = btn_send_action;
+  btn_send.rswin = rswin_send;
+
+  // Initialze the request
+  http_request req;
+  http_header hdr;
+  req.method = buf_method;
+  req.uri = buf_uri;
+  req.header_count = 1;
+  req.headers = &hdr;
+  hdr.header = "Host";
+  hdr.value = buf_domain;
+
+  void *args[4] = {rswin_body, rswin_status, &req, buf_domain};
+
+  int fidx = 1;
+  FOCUS focuses[5];
+  focuses[0].type = FOCUS_INPUT;
+  focuses[0].input = &inp_method;
+  focuses[1].type = FOCUS_INPUT;
+  focuses[1].input = &inp_domain;
+  focuses[2].type = FOCUS_INPUT;
+  focuses[2].input = &inp_uri;
+  focuses[3].type = FOCUS_SCROLLER;
+  focuses[3].scroller = rswin_body;
+  focuses[4].type = FOCUS_BUTTON;
+  focuses[4].button = &btn_send;
+
+  while (true) {
     ch = getch();
 
-    if (mode == MODE_WRITE_URL) {
-      switch (ch) {
-      case 0x0A:
-        rswin_scroll(rswin_body, -rswin_body->content_scroll_y,
-                     -rswin_body->content_scroll_x);
-        http_send(url, rswin_status, rswin_body);
-      case 0x09:
-        mode = MODE_WINDOW;
-        break;
-      case 127:
-        if (url_index > 0) {
-          url_index--;
-          url[url_index] = 0;
-        }
-        break;
-      default:
-        if (url_index < 42) {
-          url[url_index] = ch;
-          url_index++;
-        }
-        break;
+    if (ch == 'q') {
+      break;
+    }
+
+    if (ch == 0x09 || ch == 353) {
+      curs_set(0);
+
+      if (focuses[fidx].type == FOCUS_SCROLLER) {
+        rswin_set_focus(focuses[fidx].scroller, 0);
       }
-      rswin_set_text(rswin_url, url);
+      if (focuses[fidx].type == FOCUS_INPUT) {
+        rswin_set_focus(focuses[fidx].input->rswin, 0);
+      }
+      if (focuses[fidx].type == FOCUS_BUTTON) {
+        rswin_set_focus(focuses[fidx].button->rswin, 0);
+      }
+
+      if (ch == 0x09) {
+        fidx = (fidx + 1) % 5;
+      } else {
+        fidx = (fidx - 1);
+        if (fidx < 0) {
+          fidx = 4;
+        }
+      }
+
+      if (focuses[fidx].type == FOCUS_SCROLLER) {
+        rswin_set_focus(focuses[fidx].scroller, 1);
+      }
+      if (focuses[fidx].type == FOCUS_INPUT) {
+        rswin_set_focus(focuses[fidx].input->rswin, 1);
+        curs_set(1);
+      }
+      if (focuses[fidx].type == FOCUS_BUTTON) {
+        rswin_set_focus(focuses[fidx].button->rswin, 1);
+      }
       continue;
     }
 
-    switch (ch) {
-    case 'q':
-      run = 0;
-      break;
-    case 0x0A:
-      if (mode == MODE_WINDOW) {
-        rswin_scroll(rswin_body, -rswin_body->content_scroll_y,
-                     -rswin_body->content_scroll_x);
-        http_send(url, rswin_status, rswin_body);
+    switch (focuses[fidx].type) {
+    case FOCUS_SCROLLER:
+      switch (ch) {
+      case 258:
+        rswin_scroll(rswin_body, 1, 0);
+        break;
+      case 259:
+        rswin_scroll(rswin_body, -1, 0);
+        break;
+      case 260:
+        rswin_scroll(rswin_body, 0, -1);
+        break;
+      case 261:
+        rswin_scroll(rswin_body, 0, 1);
+        break;
       }
       break;
-    case 0x09:
-      mode = MODE_WRITE_URL;
+    case FOCUS_INPUT:
+      if (ch == 127) {
+        if (focuses[fidx].input->cursor > 0) {
+          focuses[fidx].input->cursor--;
+          focuses[fidx].input->buf[focuses[fidx].input->cursor] = 0;
+        }
+      } else if (isprint(ch) > 0 && focuses[fidx].input->cursor <
+                                        focuses[fidx].input->max_length) {
+        focuses[fidx].input->buf[focuses[fidx].input->cursor] = ch;
+        focuses[fidx].input->cursor++;
+        focuses[fidx].input->buf[focuses[fidx].input->cursor] = 0;
+      }
+      rswin_set_text(focuses[fidx].input->rswin, focuses[fidx].input->buf);
       break;
-    case 258:
-      rswin_scroll(rswin_body, 1, 0);
-      break;
-    case 259:
-      rswin_scroll(rswin_body, -1, 0);
-      break;
-    case 260:
-      rswin_scroll(rswin_body, 0, -1);
-      break;
-    case 261:
-      rswin_scroll(rswin_body, 0, 1);
-      break;
-    case KEY_RESIZE:
-      break;
-    default:
-      rswin_set_text(rswin_status, "Unknown Key Code = %d", ch);
+    case FOCUS_BUTTON:
+      if (ch == 0x0A) {
+        focuses[fidx].button->action(args);
+      } else {
+        rswin_set_text(rswin_status, "%d", ch);
+      }
       break;
     }
   }
 
   delwin(win);
   endwin();
-
   return EXIT_SUCCESS;
 }

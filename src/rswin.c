@@ -40,6 +40,7 @@ RESIZE_WINDOW *rswin_new(int height, int width, int starty, int startx,
   rswin->anchor = anchor;
   rswin->content_scroll_y = 0;
   rswin->content_scroll_x = 0;
+  rswin->focus = 0;
 
   origin = rswin_origin(rswin);
 
@@ -50,6 +51,23 @@ RESIZE_WINDOW *rswin_new(int height, int width, int starty, int startx,
   rswin_refresh(rswin, origin);
 
   return rswin;
+}
+
+void rswin_set_focus(RESIZE_WINDOW *rswin, int focus) {
+  POINT origin;
+  if (rswin->focus == focus) {
+    return;
+  }
+
+  rswin->focus = focus;
+  if (focus == 1) {
+    wattron(rswin->container, COLOR_PAIR(1));
+  }
+  box(rswin->container, ACS_VLINE, ACS_HLINE);
+
+  origin = rswin_origin(rswin);
+  rswin_refresh(rswin, origin);
+  wattroff(rswin->container, COLOR_PAIR(1));
 }
 
 void rswin_move(RESIZE_WINDOW *rswin, int y, int x) {
