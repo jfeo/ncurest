@@ -119,9 +119,9 @@ int main(int argc, char **argv) {
   rswin_method = rswin_new(3, 7, 0, 0, rswin_ANCHOR_TOP | rswin_ANCHOR_LEFT);
   rswin_domain = rswin_new(3, 23, 0, 7, rswin_ANCHOR_TOP | rswin_ANCHOR_LEFT);
   rswin_uri = rswin_new(3, 50, 0, 30, rswin_ANCHOR_TOP | rswin_ANCHOR_LEFT);
-  rswin_body = rswin_new(30, 80, 3, 0, rswin_ANCHOR_TOP | rswin_ANCHOR_LEFT);
-  rswin_send = rswin_new(3, 10, 33, 0, rswin_ANCHOR_TOP | rswin_ANCHOR_LEFT);
-  rswin_status = rswin_new(3, 70, 33, 10, rswin_ANCHOR_TOP | rswin_ANCHOR_LEFT);
+  rswin_body = rswin_new(20, 80, 3, 0, rswin_ANCHOR_TOP | rswin_ANCHOR_LEFT);
+  rswin_send = rswin_new(3, 10, 23, 0, rswin_ANCHOR_TOP | rswin_ANCHOR_LEFT);
+  rswin_status = rswin_new(3, 70, 23, 10, rswin_ANCHOR_TOP | rswin_ANCHOR_LEFT);
 
   /* Create the text inputs*/
   inp_domain.buf = buf_domain;
