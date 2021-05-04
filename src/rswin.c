@@ -122,7 +122,7 @@ void rswin_set_text(RESIZE_WINDOW *rswin, const char *fmt, ...) {
   va_start(ap, fmt);
 
   touchwin(rswin->container);
-  wclear(rswin->content);
+  werase(rswin->content);
   wmove(rswin->content, 0, 0);
   vw_printw(rswin->content, fmt, ap);
 
