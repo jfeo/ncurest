@@ -1,6 +1,5 @@
 #include <ctype.h>
 #include <ncurses.h>
-#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -9,17 +8,6 @@
 #include "rswin.h"
 
 WINDOW *win;
-
-/**
- * Handle interrupt signals
- *
- * Make sure to clean up ncurses..
- **/
-void sigint_handler(int param) {
-  delwin(win);
-  endwin();
-  exit(1);
-}
 
 typedef struct {
   RESIZE_WINDOW *rswin;
@@ -101,14 +89,12 @@ int main(int argc, char **argv) {
   RESIZE_WINDOW *rswin_domain, *rswin_method, *rswin_uri, *rswin_status,
       *rswin_body, *rswin_send;
 
-  signal(SIGINT, sigint_handler);
-
   /* Initialize curses */
   initscr();
   start_color();
   raw();
-  noecho();
   keypad(stdscr, TRUE);
+  noecho();
   refresh();
   curs_set(0);
 
@@ -122,6 +108,7 @@ int main(int argc, char **argv) {
   rswin_body = rswin_new(20, 80, 3, 0, rswin_ANCHOR_TOP | rswin_ANCHOR_LEFT);
   rswin_send = rswin_new(3, 10, 23, 0, rswin_ANCHOR_TOP | rswin_ANCHOR_LEFT);
   rswin_status = rswin_new(3, 70, 23, 10, rswin_ANCHOR_TOP | rswin_ANCHOR_LEFT);
+  mvprintw(26, 0, "Exit with CTRL+C or F1.");
 
   /* Create the text inputs*/
   inp_domain.buf = buf_domain;
@@ -178,7 +165,7 @@ int main(int argc, char **argv) {
   while (true) {
     ch = getch();
 
-    if (ch == 'q') {
+    if (ch == 3 || ch == 265) {
       break;
     }
 
