@@ -149,7 +149,6 @@ int main(int argc, char **argv) {
 
   void *args[4] = {rswin_body, rswin_status, &req, buf_domain};
 
-  int fidx = 1;
   FOCUS focuses[5];
   focuses[0].type = FOCUS_INPUT;
   focuses[0].input = &inp_method;
@@ -161,6 +160,10 @@ int main(int argc, char **argv) {
   focuses[3].scroller = rswin_body;
   focuses[4].type = FOCUS_BUTTON;
   focuses[4].button = &btn_send;
+
+  // set initial focus
+  int fidx = 0;
+  rswin_set_focus(rswin_method, 1);
 
   while (true) {
     ch = getch();
