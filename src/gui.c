@@ -1,3 +1,4 @@
+#include <ctype.h>
 #include <string.h>
 
 #include "gui.h"
@@ -26,6 +27,13 @@ void gui_ctrl_scroll(CONTROL *ctrl, RESIZE_WINDOW *rswin) {
   ctrl->rswin = rswin;
 }
 
+void gui_ctrl_refresh(CONTROL *ctrl) {
+  if (ctrl->type == CONTROL_TYPE_INPUT) {
+    ctrl->input.cursor = strlen(ctrl->input.buf);
+    rswin_set_text(ctrl->rswin, "%s", ctrl->input.buf);
+  }
+}
+
 void gui_ctrl_handle_char(CONTROL *ctrl, int c) {
   switch (ctrl->type) {
   case CONTROL_TYPE_SCROLL:
@@ -50,13 +58,12 @@ void gui_ctrl_handle_char(CONTROL *ctrl, int c) {
         ctrl->input.cursor--;
         ctrl->input.buf[ctrl->input.cursor] = 0;
       }
-    } else if (isprint(c) > 0 &&
-               ctrl->input.cursor < ctrl->input.max_length) {
+    } else if (isprint(c) > 0 && ctrl->input.cursor < ctrl->input.max_length) {
       ctrl->input.buf[ctrl->input.cursor] = c;
       ctrl->input.cursor++;
       ctrl->input.buf[ctrl->input.cursor] = 0;
     }
-    rswin_set_text(ctrl->rswin, ctrl->input.buf);
+    rswin_set_text(ctrl->rswin, "%s", ctrl->input.buf);
     break;
   case CONTROL_TYPE_BUTTON:
     if (c == 0x0A) {

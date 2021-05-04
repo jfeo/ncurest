@@ -33,5 +33,6 @@ void gui_ctrl_button(CONTROL *ctrl, RESIZE_WINDOW *rswin, const char *label,
 void gui_ctrl_input(CONTROL *ctrl, RESIZE_WINDOW *rswin, char *buf,
                     size_t bufsize, const char *initial);
 void gui_ctrl_handle_char(CONTROL *ctrl, int c);
+void gui_ctrl_refresh(CONTROL *ctrl);
 
 #endif // __NCUREST_GUI_H__
