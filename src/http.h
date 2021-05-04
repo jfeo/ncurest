@@ -1,5 +1,5 @@
-#ifndef __NCURLSES_HTTP_H__
-#define __NCURLSES_HTTP_H__
+#ifndef __NCUREST_HTTP_H__
+#define __NCUREST_HTTP_H__
 
 #include <stdlib.h>
 
@@ -34,4 +34,4 @@ int http_send(int socket_fd, http_request req);
 
 http_response *http_recv(int socket_fd);
 
-#endif
+#endif // __NCUREST_HTTP_H__

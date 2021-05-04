@@ -1,5 +1,5 @@
-#ifndef __NCURLSES_RSWIN_H__
-#define __NCURLSES_RSWIN_H__
+#ifndef __NCUREST_RSWIN_H__
+#define __NCUREST_RSWIN_H__
 
 #include <ncurses.h>
 
@@ -38,4 +38,4 @@ void rswin_set_text(RESIZE_WINDOW *rswin, const char *fmt, ...);
 void rswin_scroll(RESIZE_WINDOW *rswin, int delta_y, int delta_x);
 void rswin_set_focus(RESIZE_WINDOW *rswin, int focus);
 
-#endif // __NCURLSES_HTTP_H__
+#endif // __NCUREST_RSWIN_H__
