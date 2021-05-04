@@ -5,8 +5,6 @@
 #include "http.h"
 #include "net.h"
 
-#include <ncurses.h>
-
 size_t http_dump_request(http_request req, char **dump) {
   char *allocated;
   size_t size, offset;
