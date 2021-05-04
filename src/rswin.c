@@ -112,6 +112,7 @@ void rswin_resize(RESIZE_WINDOW *rswin, int height, int width) {
 }
 
 void rswin_del(RESIZE_WINDOW *rswin) {
+  delwin(rswin->content);
   delwin(rswin->container);
   free(rswin);
 }

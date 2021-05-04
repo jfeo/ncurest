@@ -245,6 +245,11 @@ int main(int argc, char **argv) {
     }
   }
 
+  rswin_del(rswin_body);
+  rswin_del(rswin_status);
+  rswin_del(rswin_domain);
+  rswin_del(rswin_uri);
+  rswin_del(rswin_send);
   delwin(win);
   endwin();
   return EXIT_SUCCESS;
