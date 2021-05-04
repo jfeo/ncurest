@@ -19,6 +19,7 @@ void btn_send_action(void **arg) {
   req = (http_request *)arg[2];
   domain = (char *)arg[3];
 
+  rswin_set_text(rswin_body, "");
   rswin_scroll(rswin_body, -rswin_body->content_scroll_y,
                -rswin_body->content_scroll_x);
 
@@ -144,6 +145,8 @@ int main(int argc, char **argv) {
   rswin_del(rswin_domain);
   rswin_del(rswin_uri);
   rswin_del(rswin_send);
+
   endwin();
+
   return EXIT_SUCCESS;
 }
