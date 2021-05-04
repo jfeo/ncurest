@@ -238,8 +238,6 @@ int main(int argc, char **argv) {
     case FOCUS_BUTTON:
       if (ch == 0x0A) {
         focuses[fidx].button->action(args);
-      } else {
-        rswin_set_text(rswin_status, "%d", ch);
       }
       break;
     }
