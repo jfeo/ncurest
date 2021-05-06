@@ -126,8 +126,8 @@ int main(int argc, char **argv) {
   void *btn_header_args[5] = {&btn_header, &hdr, &inp_hdr_name, &inp_hdr_value,
                               &header_index};
 
-  sprintf(hdr[1]->header, "Header");
-  sprintf(hdr[1]->value, "Value");
+  sprintf(hdr[1]->header, "User-Agent");
+  sprintf(hdr[1]->value, "ncurest/0.0");
 
   // Create GUI widgets
   gui_ctrl_input(&inp_domain, rswin_domain, buf_domain, 22, "example.com");

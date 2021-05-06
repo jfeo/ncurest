@@ -34,7 +34,7 @@ void rswin_refresh(RESIZE_WINDOW *rswin, POINT origin);
 void rswin_move(RESIZE_WINDOW *rswin, int y, int x);
 void rswin_resize(RESIZE_WINDOW *rswin, int height, int width);
 void rswin_del(RESIZE_WINDOW *rswin);
-void rswin_set_text(RESIZE_WINDOW *rswin, const char *fmt, ...);
+int rswin_set_text(RESIZE_WINDOW *rswin, const char *fmt, ...);
 void rswin_scroll(RESIZE_WINDOW *rswin, int delta_y, int delta_x);
 void rswin_set_focus(RESIZE_WINDOW *rswin, int focus);
 

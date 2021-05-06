@@ -74,13 +74,14 @@ START_TEST(test_http_parse_response_noheader) {
   char *raw = ("HTTP/1.1 200 Okay\r\n"
                "\r\n");
 
-  resp = http_parse_response(raw, 21);
+  http_parse_response(raw, 21, &resp);
 
   ck_assert_ptr_nonnull(resp);
   ck_assert_str_eq(resp->http_version, "HTTP/1.1");
   ck_assert_int_eq(resp->status_code, 200);
   ck_assert_str_eq(resp->reason_phrase, "Okay");
   ck_assert_int_eq(resp->header_count, 0);
+  ck_assert_int_eq(resp->content_length, 0);
   ck_assert_ptr_null(resp->body);
 }
 
@@ -90,7 +91,7 @@ START_TEST(test_http_parse_response_single_header) {
                "Server: http://server.com\r\n"
                "\r\n");
 
-  resp = http_parse_response(raw, 48);
+  http_parse_response(raw, 48, &resp);
 
   ck_assert_ptr_nonnull(resp);
   ck_assert_str_eq(resp->http_version, "HTTP/1.1");
@@ -99,6 +100,7 @@ START_TEST(test_http_parse_response_single_header) {
   ck_assert_int_eq(resp->header_count, 1);
   ck_assert_str_eq(resp->headers[0].header, "Server");
   ck_assert_str_eq(resp->headers[0].value, "http://server.com");
+  ck_assert_int_eq(resp->content_length, 0);
   ck_assert_ptr_null(resp->body);
 }
 
@@ -111,7 +113,7 @@ START_TEST(test_http_parse_response_multi_header) {
                "\r\n"
                "{\"prop\": 10}");
 
-  resp = http_parse_response(raw, 113);
+  http_parse_response(raw, 113, &resp);
 
   ck_assert_ptr_nonnull(resp);
   ck_assert_str_eq(resp->http_version, "HTTP/1.1");
@@ -124,6 +126,7 @@ START_TEST(test_http_parse_response_multi_header) {
   ck_assert_str_eq(resp->headers[1].value, "12");
   ck_assert_str_eq(resp->headers[2].header, "Content-Type");
   ck_assert_str_eq(resp->headers[2].value, "application/json");
+  ck_assert_int_eq(resp->content_length, 12);
   ck_assert_ptr_nonnull(resp->body);
   ck_assert_str_eq(resp->body, "{\"prop\": 10}");
 }
@@ -135,7 +138,7 @@ START_TEST(test_http_parse_response_body) {
                "\r\n"
                "body data");
 
-  resp = http_parse_response(raw, 57);
+  http_parse_response(raw, 57, &resp);
 
   ck_assert_ptr_nonnull(resp);
   ck_assert_ptr_nonnull(resp->body);

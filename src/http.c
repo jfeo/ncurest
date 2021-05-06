@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/socket.h>
 
 #include "http.h"
@@ -38,46 +39,41 @@ size_t http_dump_request(http_request req, char **dump) {
   return size;
 }
 
-char *take_until(char *ptr, char *end, char **ret, char c) {
-  char *result;
-  size_t i, size = 0;
+int take_until(char *src, char **dest, int offset, int bufsize, char until_c) {
+  size_t taken = 0;
 
-  while (ptr < end && *ptr != c) {
-    size++;
-    ptr++;
+  while (offset + taken < bufsize && src[offset + taken] != until_c) {
+    taken++;
   }
 
-  if (size == 0) {
-    return NULL;
+  if (taken == 0) {
+    *dest = NULL;
+    return 0;
   }
 
-  // allocate memory for http version
-  result = malloc(sizeof *result * (size + 1));
-  if (result == NULL) {
-    return (char *)NULL;
+  // allocate memory for the taken characters
+  *dest = malloc(sizeof **dest * (taken + 1));
+  if (*dest == NULL) {
+    return 0;
   }
 
-  // copy the http version
-  for (i = 0; i < size; i++) {
-    result[i] = (ptr - size)[i];
-  }
+  // copy
+  strncpy(*dest, &src[offset], taken);
+  (*dest)[taken] = '\0';
 
-  *ret = ptr;
-  result[size] = 0;
-
-  return result;
+  return taken;
 }
 
-char *skip(char *ptr, char *end, size_t nskip, const char *skip) {
+int skip(char *buf, int offset, int bufsize, int n, const char *skip) {
   size_t i;
 
-  for (i = 0; i < nskip; i++) {
-    if (ptr + i >= end || ptr[i] != skip[i]) {
-      return (char *)NULL;
+  for (i = 0; i < n; i++) {
+    if (offset + i >= bufsize || buf[offset + i] != skip[i]) {
+      return -1;
     }
   }
 
-  return &ptr[nskip];
+  return n;
 }
 
 void http_response_free(http_response *resp) {
@@ -97,64 +93,75 @@ void http_response_free(http_response *resp) {
   }
 }
 
-http_response *http_parse_response(void *buffer, size_t size) {
+int http_parse_response(char *buffer, size_t size, http_response **target) {
   http_response *resp;
-  char *ptr = (char *)buffer;
-  char *end = (char *)(ptr + size);
+  size_t offset = 0;
   http_header *headers_tmp;
-  size_t i, headers_allocated;
+  size_t headers_allocated;
+  char *ptr;
+
+  *target = NULL;
 
   // allocate respones memory
   resp = malloc(sizeof *resp);
+  resp->content_length = 0;
+  resp->body = NULL;
+  resp->header_count = 0;
+  resp->http_version = NULL;
+  resp->reason_phrase = NULL;
+  resp->headers = NULL;
+  resp->status_code = -1;
 
   // parse http version
-  resp->http_version = take_until(ptr, end, &ptr, ' ');
+  offset += take_until(buffer, &resp->http_version, offset, size, ' ');
   if (resp->http_version == NULL) {
-    free(resp);
-    return (http_response *)NULL;
+    http_response_free(resp);
+    return -1;
   }
 
   // skip the space or fail
-  ptr = skip(ptr, end, 1, " ");
-  if (ptr == NULL || ptr == end) {
+  if (skip(buffer, offset, size, 1, " ") == -1) {
     http_response_free(resp);
-    return (http_response *)NULL;
+    return -1;
   }
+  offset += 1;
 
   // parse status code
-  resp->status_code = (int)strtol(ptr, &ptr, 10);
+  resp->status_code = (int)strtol(&buffer[offset], &ptr, 10);
+  offset = ptr - buffer;
 
   // skip the space or fail
-  ptr = skip(ptr, end, 1, " ");
-  if (ptr == NULL || ptr == end) {
+  if (skip(buffer, offset, size, 1, " ") == -1) {
     http_response_free(resp);
-    return (http_response *)NULL;
+    return -1;
   }
+  offset += 1;
 
   // parse reason phrase
-  resp->reason_phrase = take_until(ptr, end, &ptr, '\r');
+  offset += take_until(buffer, &resp->reason_phrase, offset, size, '\r');
   if (resp->reason_phrase == NULL) {
     http_response_free(resp);
-    return (http_response *)NULL;
+    return -1;
   }
 
   // skip carriage return and line feed
-  ptr = skip(ptr, end, 2, "\r\n");
-  if (ptr == NULL || ptr == end) {
+  if (skip(buffer, offset, size, 2, "\r\n") == -1) {
     http_response_free(resp);
-    return (http_response *)NULL;
+    return -1;
   }
+  offset += 2;
 
-  // parse headers
+  // prepare header parsing
   resp->header_count = 0;
   headers_allocated = 5;
   resp->headers = malloc(sizeof *resp->headers * headers_allocated);
   if (resp->headers == NULL) {
     http_response_free(resp);
-    return (http_response *)NULL;
+    return -1;
   }
 
-  while (ptr < end && *ptr != '\r') {
+  // parse headers
+  while (offset < size && buffer[offset] != '\r') {
     // allocate
     if (resp->header_count == headers_allocated) {
       headers_allocated = headers_allocated * 2;
@@ -162,44 +169,61 @@ http_response *http_parse_response(void *buffer, size_t size) {
           realloc(resp->headers, sizeof *resp->headers * headers_allocated);
       if (resp->headers == NULL) {
         http_response_free(resp);
-        return (http_response *)NULL;
+        return -1;
       } else {
         resp->headers = headers_tmp;
       }
     }
 
-    // header name
-    resp->headers[resp->header_count].header = take_until(ptr, end, &ptr, ':');
-    ptr = skip(ptr, end, 2, ": ");
+    // take header name
+    offset += take_until(buffer, &resp->headers[resp->header_count].header,
+                         offset, size, ':');
 
-    if (resp->headers[resp->header_count].header == NULL || ptr == NULL ||
-        ptr == end) {
+    if (resp->headers[resp->header_count].header == NULL ||
+        skip(buffer, offset, size, 2, ": ") == -1) {
       http_response_free(resp);
-      return (http_response *)NULL;
+      return -1;
     }
+    offset += 2;
 
     // header value
-    resp->headers[resp->header_count].value = take_until(ptr, end, &ptr, '\r');
-    ptr = skip(ptr, end, 2, "\r\n");
-    if (resp->headers[resp->header_count].value == NULL || ptr == NULL ||
-        ptr == end) {
+    offset += take_until(buffer, &resp->headers[resp->header_count].value,
+                         offset, size, '\r');
+    if (resp->headers[resp->header_count].value == NULL ||
+        skip(buffer, offset, size, 2, "\r\n") == -1) {
       http_response_free(resp);
-      return (http_response *)NULL;
+      return -1;
     }
+    offset += 2;
+
+    // specific header logic
+    if (strcmp("Content-Length", resp->headers[resp->header_count].header) ==
+        0) {
+      char *endptr;
+      resp->content_length =
+          (size_t)strtoul(resp->headers[resp->header_count].value, &endptr, 10);
+      if (*endptr != '\0') {
+        resp->content_length = 0;
+      }
+    }
+
     resp->header_count++;
   }
 
   // check ending carriage return and newline
-  ptr = skip(ptr, end, 2, "\r\n");
-  if (ptr == NULL) {
+  if (skip(buffer, offset, size, 2, "\r\n") == -1) {
     http_response_free(resp);
-    return (http_response *)NULL;
+    return -1;
   }
+  offset += 2;
 
   // set the body pointer
-  resp->body = ptr < end ? (void *)ptr : NULL;
+  resp->body = offset < size ? (void *)&buffer[offset] : NULL;
 
-  return resp;
+  // set the target
+  *target = resp;
+
+  return offset;
 }
 
 int http_send(int socket_fd, http_request req) {
@@ -216,8 +240,8 @@ int http_send(int socket_fd, http_request req) {
 
 http_response *http_recv(int socket_fd) {
   char *buf, *tmp;
-  size_t len, res;
-  http_response *resp;
+  size_t len, res, offset, remaining;
+  http_response *resp = NULL;
 
   buf = malloc(HTTP_RECV_BUFSIZE * sizeof *buf);
   len = 0;
@@ -231,13 +255,23 @@ http_response *http_recv(int socket_fd) {
 
     buf = tmp;
 
-    resp = http_parse_response(buf, len);
-    if (resp != NULL) {
-      return resp;
+    if (resp == NULL) {
+      offset = http_parse_response(buf, len, &resp);
+      if (resp != NULL) {
+        remaining = resp->content_length - (len - offset);
+      }
+    } else {
+      remaining -= res;
+    }
+
+    if (remaining == 0) {
+      break;
     }
   }
 
   if (res == -1) {
     return NULL;
   }
+
+  return resp;
 }

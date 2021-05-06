@@ -24,11 +24,12 @@ typedef struct {
   size_t header_count;
   http_header *headers;
   void *body;
+  size_t content_length;
 } http_response;
 
 size_t http_dump_request(http_request req, char **buf);
 
-http_response *http_parse_response(void *buffer, size_t size);
+int http_parse_response(char *buffer, size_t size, http_response **target);
 
 int http_send(int socket_fd, http_request req);
 

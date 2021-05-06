@@ -45,7 +45,7 @@ RESIZE_WINDOW *rswin_new(int height, int width, int starty, int startx,
   origin = rswin_origin(rswin);
 
   rswin->container = newwin(height, width, origin.y, origin.x);
-  rswin->content = newpad(height * 2, width * 2);
+  rswin->content = newpad(1, 1);
 
   box(rswin->container, 0, 0);
   rswin_refresh(rswin, origin);
@@ -117,19 +117,61 @@ void rswin_del(RESIZE_WINDOW *rswin) {
   free(rswin);
 }
 
-void rswin_set_text(RESIZE_WINDOW *rswin, const char *fmt, ...) {
+int rswin_set_text(RESIZE_WINDOW *rswin, const char *fmt, ...) {
+  char *buf;
+  int bufsize, i;
+  int rows, cols, max_cols;
   va_list ap;
+
+  // compute rows and columns of output
   va_start(ap, fmt);
+  bufsize = vsnprintf(NULL, 0, fmt, ap) + 1;
+  va_end(ap);
+  if (bufsize < 0) {
+    return -1;
+  }
 
-  touchwin(rswin->container);
-  werase(rswin->content);
-  wmove(rswin->content, 0, 0);
-  vw_printw(rswin->content, fmt, ap);
+  buf = malloc(sizeof buf * bufsize);
+  if (buf == NULL) {
+    return -1;
+  }
 
+  va_start(ap, fmt);
+  if (vsprintf(buf, fmt, ap) < 0) {
+    va_end(ap);
+    free(buf);
+    return -1;
+  }
   va_end(ap);
 
+  rows = 0;
+  cols = 0;
+  max_cols = 0;
+  for (i = 0; i < bufsize; i++) {
+    if (buf[i] == '\n' || i == bufsize - 1) {
+      rows++;
+      if (cols > max_cols) {
+        max_cols = cols;
+      }
+      cols = 0;
+    } else {
+      cols++;
+    }
+  }
+  wresize(rswin->content, rows + 1, max_cols + 1);
+
+  // print text on window
+  touchwin(rswin->container);
+  werase(rswin->content);
+  mvwprintw(rswin->content, 0, 0, buf);
+
+  // refresh window
   POINT origin = rswin_origin(rswin);
   rswin_refresh(rswin, origin);
+
+  free(buf);
+
+  return bufsize;
 }
 
 void rswin_scroll(RESIZE_WINDOW *rswin, int delta_y, int delta_x) {
