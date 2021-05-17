@@ -6,9 +6,9 @@
 #include "http.h"
 #include "net.h"
 
-size_t http_dump_request(http_request req, char **dump) {
+int http_dump_request(http_request req, char **target) {
   char *allocated;
-  size_t size, offset;
+  int size, offset;
 
   // compute the size of the memory to allocate
   size = snprintf(NULL, 0, "%s %s HTTP/1.1\r\n", req.method, req.uri);
@@ -34,11 +34,25 @@ size_t http_dump_request(http_request req, char **dump) {
   }
   sprintf(&allocated[offset], "\r\n");
 
-  *dump = allocated;
+  *target = allocated;
 
   return size;
 }
 
+/**
+ * Take characters from the given source buffer until the given character, and
+ * store the taken characters in a dynamically allocated buffer.
+ *
+ * Arguments:
+ *   src      the source buffer to take from.
+ *   dest     uninitialized pointer to the destination buffer that will be
+ *            allocated.
+ *   offset   inclusive index in the source buffer from which to start taking.
+ *   bufsize  size of the source buffer.
+ *   until_c  search character that will not be taken.
+ *
+ * Returns: The number of characters taken, or -1 on error.
+ */
 int take_until(char *src, char **dest, int offset, int bufsize, char until_c) {
   size_t taken = 0;
 
@@ -54,7 +68,7 @@ int take_until(char *src, char **dest, int offset, int bufsize, char until_c) {
   // allocate memory for the taken characters
   *dest = malloc(sizeof **dest * (taken + 1));
   if (*dest == NULL) {
-    return 0;
+    return -1;
   }
 
   // copy
@@ -64,6 +78,17 @@ int take_until(char *src, char **dest, int offset, int bufsize, char until_c) {
   return taken;
 }
 
+/**
+ * Skips specific characters in the buffer from the given offset.
+ *
+ * Arguments:
+ *   buf     buffer to skip in.
+ *   offset  the index in the buffer to skip from.
+ *   n       the number of characters to skip.
+ *   skip    the order of characters to skip.
+ *
+ * Returns: n if successful, otherwise -1.
+ */
 int skip(char *buf, int offset, int bufsize, int n, const char *skip) {
   size_t i;
 
