@@ -1,3 +1,10 @@
+/*******************************************************************************
+ * http module for ncurest                                                     *
+ *                                                                             *
+ * structures for representing http requests and responses, methods for        *
+ * parsing, dumping, sending and receiving http requests.                      *
+ ******************************************************************************/
+
 #ifndef __NCUREST_HTTP_H__
 #define __NCUREST_HTTP_H__
 

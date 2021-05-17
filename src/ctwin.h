@@ -1,5 +1,12 @@
-#ifndef __NCUREST_RSWIN_H__
-#define __NCUREST_RSWIN_H__
+/*******************************************************************************
+ * ctwin module for ncurest                                                    *
+ *                                                                             *
+ * functions for managing CONTENT_WINDOW structures, wrappers for ncurses      *
+ * WINDOW objects.                                                             *
+ ******************************************************************************/
+
+#ifndef __NCUREST_CTWIN_H__
+#define __NCUREST_CTWIN_H__
 
 #include <ncurses.h>
 
@@ -38,4 +45,4 @@ int ctwin_set_text(CONTENT_WINDOW *ctwin, const char *fmt, ...);
 void ctwin_scroll(CONTENT_WINDOW *ctwin, int delta_y, int delta_x);
 void ctwin_set_focus(CONTENT_WINDOW *ctwin, int focus);
 
-#endif // __NCUREST_RSWIN_H__
+#endif // __NCUREST_CTWIN_H__

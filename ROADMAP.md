@@ -8,6 +8,7 @@ Version 0.1 - The basics
 
  - [x] Send HTTP/1.1 request headers
  - [x] Receive HTTP responses 
+ - [x] Modify hard-coded request headers
  - [ ] Add/remove/edit request headers
  - [x] Input user-defined tcp domain
  - [ ] Display request response headers
@@ -30,10 +31,11 @@ Version 0.3 - Validation and feedback
  - [ ] Validate response entity-headers
  - [ ] Add an error log
 
-Version 0.4 - GUI improvements
+Version 0.4 - UX / GUI improvements
 ------------------------------
 
  - [ ] Handle resizing windows.
+ - [ ] URL parsing
 
 Version 1.0
 -----------
