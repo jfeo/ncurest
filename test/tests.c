@@ -84,6 +84,7 @@ START_TEST(test_http_parse_response_noheader) {
   ck_assert_int_eq(resp->content_length, 0);
   ck_assert_ptr_null(resp->body);
 }
+END_TEST
 
 START_TEST(test_http_parse_response_single_header) {
   http_response *resp;
@@ -103,6 +104,7 @@ START_TEST(test_http_parse_response_single_header) {
   ck_assert_int_eq(resp->content_length, 0);
   ck_assert_ptr_null(resp->body);
 }
+END_TEST
 
 START_TEST(test_http_parse_response_multi_header) {
   http_response *resp;
@@ -130,6 +132,7 @@ START_TEST(test_http_parse_response_multi_header) {
   ck_assert_ptr_nonnull(resp->body);
   ck_assert_str_eq(resp->body, "{\"prop\": 10}");
 }
+END_TEST
 
 START_TEST(test_http_parse_response_body) {
   http_response *resp;
@@ -144,6 +147,7 @@ START_TEST(test_http_parse_response_body) {
   ck_assert_ptr_nonnull(resp->body);
   ck_assert_ptr_eq(resp->body, &raw[48]);
 }
+END_TEST
 
 Suite *http_suite(void) {
   Suite *s;
