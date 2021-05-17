@@ -31,8 +31,10 @@ void ctwin_refresh(CONTENT_WINDOW *ctwin, POINT origin) {
 CONTENT_WINDOW *ctwin_new(int height, int width, int starty, int startx,
                          int anchor) {
   POINT origin;
-  CONTENT_WINDOW *ctwin = malloc(sizeof(CONTENT_WINDOW));
+  CONTENT_WINDOW *ctwin;
 
+  // allocate memory for content window and initialize default values
+  ctwin = malloc(sizeof(CONTENT_WINDOW));
   ctwin->height = height;
   ctwin->width = width;
   ctwin->y = starty;
