@@ -4,7 +4,6 @@
 #include <sys/socket.h>
 
 #include "http.h"
-#include "net.h"
 
 int http_dump_request(http_request req, char **target) {
   char *allocated;
