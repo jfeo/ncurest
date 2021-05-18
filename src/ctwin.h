@@ -1,8 +1,8 @@
-/*******************************************************************************
- * ctwin module for ncurest                                                    *
- *                                                                             *
- * functions for managing CONTENT_WINDOW structures, wrappers for ncurses      *
- * WINDOW objects.                                                             *
+/******************************************************************************
+ * ctwin module for ncurest                                                   *
+ *                                                                            *
+ * functions for managing CONTENT_WINDOW structures, wrappers for ncurses     *
+ * WINDOW objects.                                                            *
  ******************************************************************************/
 
 #ifndef __NCUREST_CTWIN_H__

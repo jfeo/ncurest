@@ -1,8 +1,8 @@
-/*******************************************************************************
- * http module for ncurest                                                     *
- *                                                                             *
- * structures for representing http requests and responses, methods for        *
- * parsing, dumping, sending and receiving http requests.                      *
+/******************************************************************************
+ * http module for ncurest                                                    *
+ *                                                                            *
+ * structures for representing http requests and responses, methods for       *
+ * parsing, dumping, sending and receiving http requests.                     *
  ******************************************************************************/
 
 #ifndef __NCUREST_HTTP_H__
@@ -85,7 +85,7 @@ http_response *http_recv(int socket_fd);
 
 /**
  * Free a http response.
- * 
+ *
  * Arguments:
  *   resp  pointer to the http_response to free.
  */
