@@ -1,11 +1,12 @@
 #include <ncurses.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 
+#include "ctwin.h"
 #include "gui.h"
 #include "http.h"
 #include "net.h"
-#include "ctwin.h"
 
 void btn_send_action(void **arg) {
   CONTENT_WINDOW *ctwin_body, *ctwin_status;
@@ -25,12 +26,17 @@ void btn_send_action(void **arg) {
   ctwin_set_text(ctwin_status, "Establishing connection...");
 
   socket_fd = net_tcp_connect(domain, "80");
+  if (socket_fd == -1) {
+    ctwin_set_text(ctwin_status, "Could not establish connection.");
+    return;
+  }
 
   ctwin_set_text(ctwin_status, "Sending request...");
 
   if (http_send(socket_fd, *req) == -1) {
     // error
     ctwin_set_text(ctwin_status, "Error occured during sending.");
+    close(socket_fd);
     return;
   }
 
@@ -39,6 +45,7 @@ void btn_send_action(void **arg) {
   http_response *resp = http_recv(socket_fd);
   if (resp == NULL) {
     ctwin_set_text(ctwin_status, "Error occured during receiving.");
+    close(socket_fd);
     return;
   }
 
@@ -49,6 +56,8 @@ void btn_send_action(void **arg) {
   } else {
     ctwin_set_text(ctwin_body, "");
   }
+
+  close(socket_fd);
 }
 
 void btn_header_action(void **args) {
@@ -172,7 +181,7 @@ int main(int argc, char **argv) {
         }
       }
       ctwin_set_focus((*focus)->ctwin, 1);
-      if ((*focus)->type == CONTROL_TYPE_INPUT) {
+      if ((*focus)->type == CONTROL_INPUT) {
         curs_set(1);
       }
       continue;
