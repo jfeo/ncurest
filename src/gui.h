@@ -3,9 +3,11 @@
 
 #include "ctwin.h"
 
-#define CONTROL_TYPE_SCROLL 1
-#define CONTROL_TYPE_INPUT 2
-#define CONTROL_TYPE_BUTTON 3
+typedef enum {
+    CONTROL_SCROLL,
+    CONTROL_INPUT,
+    CONTROL_BUTTON
+} CONTROL_TYPE;
 
 struct input_data {
   char *buf;
@@ -19,7 +21,7 @@ struct button_data {
 };
 
 typedef struct {
-  int type;
+  CONTROL_TYPE type;
   CONTENT_WINDOW *ctwin;
   union {
     struct input_data input;

@@ -5,7 +5,7 @@
 
 void gui_ctrl_button(CONTROL *ctrl, CONTENT_WINDOW *ctwin, const char *label,
                      void (*action)(void **), void **args) {
-  ctrl->type = CONTROL_TYPE_BUTTON;
+  ctrl->type = CONTROL_BUTTON;
   ctrl->ctwin = ctwin;
   ctrl->button.action = action;
   ctrl->button.args = args;
@@ -14,7 +14,7 @@ void gui_ctrl_button(CONTROL *ctrl, CONTENT_WINDOW *ctwin, const char *label,
 
 void gui_ctrl_input(CONTROL *ctrl, CONTENT_WINDOW *ctwin, char *buf,
                     size_t bufsize, const char *initial) {
-  ctrl->type = CONTROL_TYPE_INPUT;
+  ctrl->type = CONTROL_INPUT;
   ctrl->ctwin = ctwin;
   ctrl->input.buf = buf;
   ctrl->input.max_length = bufsize;
@@ -23,20 +23,24 @@ void gui_ctrl_input(CONTROL *ctrl, CONTENT_WINDOW *ctwin, char *buf,
 }
 
 void gui_ctrl_scroll(CONTROL *ctrl, CONTENT_WINDOW *ctwin) {
-  ctrl->type = CONTROL_TYPE_SCROLL;
+  ctrl->type = CONTROL_SCROLL;
   ctrl->ctwin = ctwin;
 }
 
 void gui_ctrl_refresh(CONTROL *ctrl) {
-  if (ctrl->type == CONTROL_TYPE_INPUT) {
+  switch (ctrl->type) {
+  case CONTROL_INPUT:
     ctrl->input.cursor = strlen(ctrl->input.buf);
     ctwin_set_text(ctrl->ctwin, "%s", ctrl->input.buf);
+    break;
+  default:
+    break;
   }
 }
 
 void gui_ctrl_handle_char(CONTROL *ctrl, int c) {
   switch (ctrl->type) {
-  case CONTROL_TYPE_SCROLL:
+  case CONTROL_SCROLL:
     switch (c) {
     case 258:
       ctwin_scroll(ctrl->ctwin, 1, 0);
@@ -52,7 +56,7 @@ void gui_ctrl_handle_char(CONTROL *ctrl, int c) {
       break;
     }
     break;
-  case CONTROL_TYPE_INPUT:
+  case CONTROL_INPUT:
     if (c == 127) {
       if (ctrl->input.cursor > 0) {
         ctrl->input.cursor--;
@@ -65,7 +69,7 @@ void gui_ctrl_handle_char(CONTROL *ctrl, int c) {
     }
     ctwin_set_text(ctrl->ctwin, "%s", ctrl->input.buf);
     break;
-  case CONTROL_TYPE_BUTTON:
+  case CONTROL_BUTTON:
     if (c == 0x0A) {
       ctrl->button.action(ctrl->button.args);
     }
